@@ -10,11 +10,10 @@ const proyects_list = [
 ];
 
 const rubros_list = [
-    "Mecánidsdsdsco",
+    "Mecánico",
     "Eléctrico",
     "Software",
     "Calidad",
-    "Cambio Modelo",
     "Mantenimiento",
     "Logística"
 ];
