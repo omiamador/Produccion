@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huf México</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="Lines.js"></script>
+
+    <style>
+        :root { --huf-guinda: #8A0829; --huf-gris-oscuro: #4A4A4A; --huf-gris-claro: #F2F2F2; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; background: var(--huf-gris-claro); height: 100vh; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 340px; background: var(--huf-guinda); color: white; display: flex; flex-direction: column; padding: 12px; z-index: 100; overflow-y: auto; }
+        .sidebar-header { text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; margin-bottom: 15px; }
+        .logo-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 5px; }
+        .huf-logo-img { height: 35px; width: auto; filter: brightness(0) invert(1); }
+        .sidebar-header h2 { margin: 0; font-size: 1.1rem; letter-spacing: 1px; font-weight: 700; }
+        .sidebar-header span { font-size: 0.75rem; opacity: 0.8; }
+
+        .nav-links { list-style: none; padding: 0; margin-bottom: 20px; }
+        .nav-links a { color: white; text-decoration: none; display: flex; align-items: center; padding: 10px; border-radius: 8px; margin-bottom: 5px; transition: 0.3s; cursor: pointer; font-size: 0.85rem; background: rgba(255,255,255,0.05); }
+        .nav-links a:hover, .nav-links a.active { background: var(--huf-gris-oscuro); border-left: 5px solid white; }
+        .nav-links i { margin-right: 12px; width: 20px; text-align: center; }
+
+        /* Matriz de Paros Activos */
+        .active-matrix-container { margin-bottom: 15px; }
+        .matrix-title { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; display: block; font-weight: bold; border-left: 8px solid white; padding-left: 8px; }
+        .active-matrix { display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(8, 1fr); gap: 6px; height: 490px; }
+        
+        .matrix-card { background: white; color: #333; border-radius: 6px; padding: 6px; position: relative; box-shadow: 0 6px 8px rgba(0,0,0,0.1); border-left: 4px solid #e74c3c; display: flex; flex-direction: column; justify-content: center; }
+        .matrix-card b {text-align: left; font-size: 0.9rem; color: var(--huf-guinda); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .matrix-card span {text-align: left; font-size: 0.8rem; color: #666; line-height: 1.0; }
+        .matrix-card .timer {text-align: center; font-weight: bold; color: #e74c3c; font-size: 0.9rem; margin-top: 3px; }
+        .matrix-card .btn-quick-close { position: absolute; right: 5px; top: 5px; color: #ae2727; font-size: 1.2rem; cursor: pointer; }
+        
+        .alert-pulse { animation: pulse-super-slow 5s infinite ease-in-out !important; border: 2px solid red !important; }
+        @keyframes pulse-super-slow { 0%, 100% { opacity: 1; } 20% { opacity: 0.8; } }
+
+        .matrix-slot-empty { background: rgba(0,0,0,0.15); border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px; }
+        .digital-clock { font-family: 'Courier New', monospace; font-weight: bold; font-size: 3.1rem; color: white; text-align: center; margin-top: auto; padding-top: 15px; }
+
+        .main { flex: 1; padding: 0px; overflow-y: auto; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 6px solid var(--huf-guinda); padding-bottom: 10px; }
+        .date-controls { display: flex; align-items: center; gap: 8px; }
+        .btn-nav { background: white; border: 1px solid #ccc; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+        .btn-today { background: var(--huf-guinda); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
+        .counter-bar { display: flex; gap: 10px; margin-bottom: 10px; }
+        .counter-item { padding: 5px 12px; border-radius: 20px; font-size: 0.95rem; font-weight: bold; color: white; display: flex; align-items: center; gap: 6px; }
+        .count-total { background: var(--huf-gris-oscuro); }
+        .count-verde { background: #27ae60; }
+        .count-amarillo { background: #f1c40f; color: #333; }
+        .count-rojo { background: #e74c3c; }
+        .count-critico { background: #000; }
+
+        .turno-matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; border-bottom: 20px solid var(--huf-gris-oscuro); border-top: 20px solid var(--huf-gris-oscuro);}
+        .turno-card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+        .turno-card h4 { margin: 10px 0 2px 0; }
+        .horario { font-size: 1.5rem; color: #666; display: block; margin-bottom: 10px; }
+        .turno-data { display: flex; justify-content: space-around; margin-top: 3px; }
+        .turno-data b { font-size: 1.5rem; color: var(--huf-guinda); }
+        .turno-data span { font-size: 1.5rem; color: #999; display: block; }
+
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        th { background: var(--huf-gris-oscuro); color: white; padding: 12px; font-size: 0.8rem; }
+        td { padding: 12px; font-size: 0.8rem; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.05); }
+
+        .row-verde { background-color: #d4edda !important; color: #155724 !important; }
+        .row-amarillo { background-color: #fff3cd !important; color: #856404 !important; }
+        .row-rojo { background-color: #f8d7da !important; color: #721c24 !important; font-weight: bold; }
+        .row-critico { background-color: #8A0829 !important; color: white !important; font-weight: bold; }
+
+        .filter-input { width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.75rem; }
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid currentColor; background: rgba(255,255,255,0.2); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; }
+        .chart-item { grid-column: span 2; height: 250px; }
+        .chart-item-wide { grid-column: span 3; height: 250px; }
+        .chart-full { grid-column: span 6; height: 400px; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-container">
+                <img src="logo_huf.png" alt="Huf Logo" class="huf-logo-img">
+                <h2>HUF MÉXICO</h2>
+            </div>
+            <span>Developed by Omar Amador</span>
+        </div>
+        <nav class="nav-links">
+            <a onclick="showSection('nuevo', this)" id="nav-nuevo" class="active"><i class="fas fa-edit"></i> Nuevo Ticket</a>
+            <a onclick="showSection('dashboard', this)" id="nav-dashboard"><i class="fas fa-tachometer-alt"></i> Diario</a>
+            <a onclick="showSection('semanal', this)" id="nav-semanal"><i class="fas fa-calendar-week"></i> Mensual</a>
+            <a onclick="showSection('ranking', this)" id="nav-ranking"><i class="fas fa-trophy"></i> Ranking</a>
+            <a onclick="showSection('historial', this)" id="nav-historial"><i class="fas fa-history"></i> Historial</a>
+        </nav>
+        <div class="active-matrix-container">
+            <span class="matrix-title">tickets Activos</span>
+            <div class="active-matrix" id="activeMatrix"></div>
+        </div>
+        <div class="digital-clock" id="liveClock">00:00:00</div>
+    </aside>
+
+    <main class="main">
+        <div class="header-top">
+            <h1 id="pageTitle" style="color: var(--huf-gris-oscuro);">Ticket</h1>
+            <div class="date-controls">
+                <button class="btn-auto" id="btnAuto" onclick="toggleAutoRotation()"><i class="fas fa-sync"></i></button>
+                <button class="btn-nav" onclick="changeDate(-1)"><i class="fas fa-chevron-left"></i></button>
+                <input type="date" id="dateSelector" onchange="refreshAll()">
+                <button class="btn-nav" onclick="changeDate(1)"><i class="fas fa-chevron-right"></i></button>
+                <button class="btn-today" onclick="setToday()">HOY</button>
+            </div>
+        </div>
+
+        <div id="stats-header" style="display:none">
+            <div class="turno-matrix">
+                <div class="turno-card" id="card-T1"><h4>Primer Turno</h4><span class="horario">06:00Hrs - 14:00Hrs</span><div class="turno-data"><div><span>Tickets</span><b id="t1-ev">0</b></div><div><span>Minutos Paro</span><b id="t1-min">0</b></div></div></div>
+                <div class="turno-card" id="card-T2"><h4>Segundo Turno</h4><span class="horario">14:00Hrs - 21:30Hrs</span><div class="turno-data"><div><span>Tickets</span><b id="t2-ev">0</b></div><div><span>Minutos Paro</span><b id="t2-min">0</b></div></div></div>
+                <div class="turno-card" id="card-T3"><h4>Tercer Turno</h4><span class="horario">21:30Hrs - 06:00Hrs</span><div class="turno-data"><div><span>Tickets</span><b id="t3-ev">0</b></div><div><span>Minutos Paro</span><b id="t3-min">0</b></div></div></div>
+            </div>
+        </div>
+
+        <section id="nuevo" class="section active">
+            <div class="card">
+                <form id="paroForm">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px">
+                        <div><label>Nombre</label><input type="text" id="nombreUsuario" style="width:95%; padding:10px;" placeholder="Tu nombre..." required></div>
+                        <div><label>Linea</label><select id="proyecto" style="width:100%; padding:10px;"></select></div>
+                        <div><label>Estación</label><input type="text" id="estacion" style="width:95%; padding:10px;" placeholder="..." required></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr; gap:15px; margin-top:15px">
+                        <div><label>Área</label><select id="rubro" style="width:100%; padding:10px;" required></select></div>
+                    </div>
+                    <div style="margin-top:15px"><label>Descripción</label><textarea id="descripcion" style="width:100%; padding:10px;" rows="3" placeholder="..."></textarea></div>
+                    <div style="margin-top:20px; text-align:CENTER;"><button type="submit" class="btn-today">SUBIR TICKET</button></div>
+                </form>
+            </div>
+        </section>
+
+        <section id="dashboard" class="section">
+            <div class="charts-grid">
+                <div class="card chart-item-wide"><canvas id="dPareto"></canvas></div>
+                <div class="card chart-item-wide"><canvas id="dProjPie"></canvas></div>
+                <div class="card chart-item"><canvas id="dFrecRubro"></canvas></div>
+                <div class="card chart-item"><canvas id="dTimeRubro"></canvas></div>
+                <div class="card chart-item"><canvas id="dShiftMin"></canvas></div>
+            </div>
+        </section>
+
+        <section id="semanal" class="section">
+            <div class="charts-grid">
+                <div class="card chart-item-wide"><canvas id="mPareto"></canvas></div>
+                <div class="card chart-item-wide"><canvas id="mProjPie"></canvas></div>
+                <div class="card chart-item"><canvas id="mFrecRubro"></canvas></div>
+                <div class="card chart-item"><canvas id="mTimeRubro"></canvas></div>
+                <div class="card chart-item"><canvas id="mShiftMin"></canvas></div>
+            </div>
+        </section>
+
+        <section id="ranking" class="section">
+            <div class="card chart-full">
+                <canvas id="rankingChart"></canvas>
+            </div>
+        </section>
+
+        <section id="historial" class="section">
+            <div class="counter-bar">
+                <div class="counter-item count-total">Total: <span id="c-total">0</span></div>
+                <div class="counter-item count-verde">Bajo: <span id="c-verde">0</span></div>
+                <div class="counter-item count-amarillo">Medio: <span id="c-amarillo">0</span></div>
+                <div class="counter-item count-rojo">Alto: <span id="c-rojo">0</span></div>
+                <div class="counter-item count-critico">Crítico: <span id="c-critico">0</span></div>
+            </div>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr style="background:#f0f0f0">
+                            <th></th>
+                            <th><select id="f-turno" class="filter-input" onchange="renderTable()"><option value="">Todo</option><option>T1</option><option>T2</option><option>T3</option></select></th>
+                            <th><select id="f-proy" class="filter-input" onchange="renderTable()"><option value="">Todo</option></select></th>
+                            <th><input type="text" id="f-esta" class="filter-input" placeholder="Buscar..." onkeyup="renderTable()"></th>
+                            <th><select id="f-rubro" class="filter-input" onchange="renderTable()"><option value="">Todo</option></select></th>
+                            <th><select id="f-sev" class="filter-input" onchange="renderTable()"><option value=""></option><option value="verde">Bajo</option><option value="amarillo">Medio</option><option value="rojo">Alto</option><option value="critico">Crítico</option></select></th>
+                            <th><select id="f-edo" class="filter-input" onchange="renderTable()"><option value="">Todo</option><option>Abierto</option><option>Cerrado</option></select></th>
+                            <th><button onclick="clearFilters()" class="btn-nav"><i class="fas fa-broom"></i></button></th>
+                        </tr>
+                        <tr><th>Inicio</th><th>Turno</th><th>Linea</th><th>Estación</th><th>Área</th><th>Tiempo Paro</th><th>Estado</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://tarjetas2-76654-default-rtdb.firebaseio.com/",
+            projectId: "tarjetas2-76654",
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const parosRef = db.ref('paros_andon');
+
+        let paros = [];
+        let chs = {};
+        let rotationInterval = null;
+        const colors = ['#8A0829', '#4A4A4A', '#2ecc71', '#f39c12', '#3498db', '#9b59b6'];
+
+        parosRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            paros = data ? Object.keys(data).map(key => ({ ...data[key], fbKey: key })) : [];
+            refreshAll(); 
+            renderActiveMatrix();
+        });
+
+        function loadDynamicConfigs() {
+            const selProjNew = document.getElementById('proyecto'), selProjFilt = document.getElementById('f-proy');
+            const selRubroNew = document.getElementById('rubro'), selRubroFilt = document.getElementById('f-rubro');
+            const pList = (typeof proyects_list !== 'undefined') ? proyects_list : ["Error Lines.js"];
+            const rList = (typeof rubros_list !== 'undefined') ? rubros_list : ["Error Lines.js"];
+            pList.forEach(p => { selProjNew.add(new Option(p, p)); selProjFilt.add(new Option(p, p)); });
+            rList.forEach(r => { selRubroNew.add(new Option(r, r)); selRubroFilt.add(new Option(r, r)); });
+        }
+
+        function getTurno(date = new Date()) {
+            const h = date.getHours(), m = h * 60 + date.getMinutes();
+            if (m >= 360 && m < 840) return "T1";
+            if (m >= 840 && m < 1290) return "T2";
+            return "T3";
+        }
+
+        setInterval(() => { 
+            document.getElementById('liveClock').innerText = new Date().toLocaleTimeString();
+            renderActiveMatrix();
+        }, 1000);
+
+        function renderActiveMatrix() {
+            const container = document.getElementById('activeMatrix');
+            const activeParos = paros.filter(p => p.estado === 'Abierto').slice(0, 16);
+            container.innerHTML = '';
+            activeParos.forEach(p => {
+                const min = Math.round((new Date() - new Date(p.inicio)) / 60000);
+                const card = document.createElement('div');
+                card.className = `matrix-card ${min > 30 ? 'alert-pulse' : ''}`;
+                card.innerHTML = `<b>${p.proyecto} - ${p.estacion}</b><span>${p.rubro}</span><div class="timer">${min} min</div><div class="btn-quick-close" onclick="cerrarParo('${p.fbKey}')"><i class="fas fa-times-circle btn-quick-close"></i></div>`;
+                container.appendChild(card);
+            });
+            for (let i = activeParos.length; i < 16; i++) { container.appendChild(Object.assign(document.createElement('div'), {className:'matrix-slot-empty'})); }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tbody'), selDate = document.getElementById('dateSelector').value;
+            const fT = document.getElementById('f-turno').value, fP = document.getElementById('f-proy').value.toLowerCase(),
+                  fE = document.getElementById('f-esta').value.toLowerCase(), fR = document.getElementById('f-rubro').value,
+                  fEd = document.getElementById('f-edo').value, fSv = document.getElementById('f-sev').value;
+            
+            tbody.innerHTML = '';
+            let counts = {total:0, verde:0, amarillo:0, rojo:0, critico:0};
+
+            paros.filter(p => p.inicio.split('T')[0] === selDate).slice().reverse().forEach(p => {
+                const m = p.estado === 'Abierto' ? Math.round((new Date() - new Date(p.inicio))/60000) : p.minutos;
+                let rClass = m < 30 ? 'verde' : m < 90 ? 'amarillo' : m < 180 ? 'rojo' : 'critico';
+                if ((!fT || p.turno === fT) && (!fP || p.proyecto.toLowerCase().includes(fP)) && (!fE || p.estacion.toLowerCase().includes(fE)) && (!fR || p.rubro === fR) && (!fEd || p.estado === fEd) && (!fSv || rClass === fSv)) {
+                    counts.total++; counts[rClass]++;
+                    tbody.innerHTML += `<tr class="row-${rClass}">
+                        <td>${new Date(p.inicio).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td><b>${p.turno}</b></td><td>${p.proyecto}</td><td>${p.estacion}</td><td>${p.rubro}</td><td>${m}m</td>
+                        <td><span class="badge">${p.estado}</span></td>
+                        <td>
+                            ${p.estado === 'Abierto' ? `<button onclick="cerrarParo('${p.fbKey}')" style="border:none; background:none; color:green; cursor:pointer"><i class="fas fa-check-circle"></i></button>` : `<button onclick="verSolucion('${p.fbKey}')" style="border:none; background:none; cursor:pointer"><i class="fas fa-comment"></i></button>`}
+                            <button onclick="editarMinutos('${p.fbKey}')" style="border:none; background:none; color:orange; cursor:pointer; margin-left:8px"><i class="fas fa-edit"></i></button>
+                            <button onclick="eliminarParo('${p.fbKey}')" style="border:none; background:none; color:red; cursor:pointer; margin-left:8px"><i class="fas fa-trash"></i></button>
+                        </td></tr>`;
+                }
+            });
+            ['total', 'verde', 'amarillo', 'rojo', 'critico'].forEach(c => {
+                const el = document.getElementById(`c-${c}`);
+                if(el) el.innerText = counts[c];
+            });
+        }
+
+        async function cerrarParo(fbKey) {
+            const p = paros.find(x => x.fbKey === fbKey);
+            const { value: sol } = await Swal.fire({ title: 'Cerrar Paro', input: 'textarea', placeholder: 'Solución...', confirmButtonColor: '#8A0829' });
+            if(sol) { 
+                const min = Math.round((new Date() - new Date(p.inicio)) / 60000);
+                parosRef.child(fbKey).update({ minutos: min, solucion: sol, estado: 'Cerrado' });
+            }
+        }
+
+        function verSolucion(fbKey) { const p = paros.find(x => x.fbKey === fbKey); Swal.fire({ title: 'Solución', text: p.solucion, confirmButtonColor: '#8A0829' }); }
+
+        async function editarMinutos(fbKey) {
+            const { value: pass } = await Swal.fire({ title: 'Admin', input: 'password', placeholder: 'Password', confirmButtonColor: '#8A0829' });
+            if(pass === "Huf2026") {
+                const p = paros.find(x => x.fbKey === fbKey);
+                const { value: newMin } = await Swal.fire({ title: 'Ajustar Minutos', input: 'number', inputValue: p.minutos, confirmButtonColor: '#8A0829' });
+                if(newMin) parosRef.child(fbKey).update({ minutos: parseInt(newMin) });
+            } else if(pass) { Swal.fire('Error', 'Password Incorrecto', 'error'); }
+        }
+
+        async function eliminarParo(fbKey) {
+            const { value: pass } = await Swal.fire({ title: 'Admin', input: 'password', placeholder: 'Password', confirmButtonColor: '#8A0829' });
+            if(pass === "Huf2026") parosRef.child(fbKey).remove();
+            else if(pass) { Swal.fire('Error', 'Password Incorrecto', 'error'); }
+        }
+
+        function getStats(data, field, type, limit = 0) {
+            let res = {};
+            data.forEach(p => {
+                const val = (type === 'min') ? (p.estado === 'Abierto' ? Math.round((new Date() - new Date(p.inicio))/60000) : p.minutos) : 1;
+                const key = p[field] || "Desconocido";
+                res[key] = (res[key] || 0) + val;
+            });
+            if (limit > 0) return Object.fromEntries(Object.entries(res).sort((a,b) => b[1] - a[1]).slice(0, limit));
+            return res;
+        }
+
+        function renderChart(id, type, data, title) {
+            if(chs[id]) chs[id].destroy();
+            const ctx = document.getElementById(id); if(!ctx) return;
+            chs[id] = new Chart(ctx, { type: type, data: { labels: Object.keys(data), datasets: [{ label: title, data: Object.values(data), backgroundColor: colors }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: title } } } });
+        }
+
+        function refreshAll() {
+            const selDate = document.getElementById('dateSelector').value;
+            if(!selDate) return;
+            const daily = paros.filter(p => p.inicio.split('T')[0] === selDate);
+            const monthly = paros.filter(p => { const d = new Date(p.inicio); const limit = new Date(); limit.setDate(limit.getDate()-30); return d >= limit; });
+            const active = document.querySelector('.section.active').id;
+            
+            if(active === 'dashboard') {
+                renderChart('dPareto', 'bar', getStats(daily, 'proyecto', 'ev', 5), 'Top 5 Proyectos');
+                renderChart('dTimeRubro', 'doughnut', getStats(daily, 'rubro', 'min'), 'Minutos');
+                renderChart('dFrecRubro', 'bar', getStats(daily, 'rubro', 'ev'), 'Frecuencia');
+                renderChart('dProjPie', 'pie', getStats(daily, 'proyecto', 'ev'), 'Eventos/Proyecto');
+                renderChart('dShiftMin', 'bar', getStats(daily, 'turno', 'min'), 'Minutos/Turno');
+                updateTurnoMatrix(daily);
+            } else if(active === 'semanal') {
+                renderChart('mPareto', 'bar', getStats(monthly, 'proyecto', 'ev', 5), 'Top 5 Proyectos (30d)');
+                renderChart('mTimeRubro', 'doughnut', getStats(monthly, 'rubro', 'min'), 'Minutos (30d)');
+                renderChart('mFrecRubro', 'bar', getStats(monthly, 'rubro', 'ev'), 'Frecuencia (30d)');
+                renderChart('mProjPie', 'pie', getStats(monthly, 'proyecto', 'ev'), 'Eventos (30d)');
+                renderChart('mShiftMin', 'bar', getStats(monthly, 'turno', 'min'), 'Minutos/Turno (30d)');
+                updateTurnoMatrix(monthly);
+            } else if(active === 'ranking') {
+                renderChart('rankingChart', 'bar', getStats(paros, 'nombre', 'ev'), 'Tickets creados por Usuario (Histórico)');
+            }
+            renderTable();
+        }
+
+        function updateTurnoMatrix(data) {
+            const s = {T1:{ev:0,min:0}, T2:{ev:0,min:0}, T3:{ev:0,min:0}};
+            data.forEach(p => { 
+                const m = p.estado==='Abierto' ? Math.round((new Date()-new Date(p.inicio))/60000) : p.minutos; 
+                if(s[p.turno]) { s[p.turno].ev++; s[p.turno].min += m; } 
+            });
+            ['t1','t2','t3'].forEach(t => { 
+                const evEl = document.getElementById(`${t}-ev`), minEl = document.getElementById(`${t}-min`);
+                if(evEl) evEl.innerText = s[t.toUpperCase()].ev; 
+                if(minEl) minEl.innerText = s[t.toUpperCase()].min; 
+            });
+        }
+
+        function showSection(id, el) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+            document.getElementById(id).classList.add('active'); el.classList.add('active');
+            const stats = document.getElementById('stats-header');
+            if(stats) stats.style.display = (id === 'dashboard' || id === 'semanal') ? 'block' : 'none';
+            document.getElementById('pageTitle').innerText = el.innerText.trim(); refreshAll();
+        }
+
+        function toggleAutoRotation() {
+            const btn = document.getElementById('btnAuto');
+            if (rotationInterval) { clearInterval(rotationInterval); rotationInterval = null; btn.classList.remove('active'); }
+            else { btn.classList.add('active'); rotationInterval = setInterval(() => { 
+                const active = document.querySelector('.section.active').id; 
+                if(active === 'dashboard') showSection('semanal', document.getElementById('nav-semanal'));
+                else if(active === 'semanal') showSection('ranking', document.getElementById('nav-ranking'));
+                else showSection('dashboard', document.getElementById('nav-dashboard'));
+            }, 5000); }
+        }
+
+        function setToday() { document.getElementById('dateSelector').valueAsDate = new Date(); refreshAll(); }
+        function changeDate(days) { const p = document.getElementById('dateSelector'); const c = new Date(p.value + 'T00:00:00'); c.setDate(c.getDate()+days); p.valueAsDate = c; refreshAll(); }
+        function clearFilters() { ['f-turno','f-proy','f-esta','f-rubro','f-edo','f-sev'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; }); renderTable(); }
+
+        document.getElementById('paroForm').addEventListener('submit', (e) => {
+            e.preventDefault(); const now = new Date();
+            parosRef.push({
+                nombre: document.getElementById('nombreUsuario').value,
+                inicio: now.toISOString(),
+                turno: getTurno(now),
+                proyecto: document.getElementById('proyecto').value,
+                estacion: document.getElementById('estacion').value,
+                rubro: document.getElementById('rubro').value,
+                descripcion: document.getElementById('descripcion').value,
+                minutos: 0,
+                estado: 'Abierto'
+            });
+            e.target.reset(); showSection('historial', document.getElementById('nav-historial'));
+        });
+
+        loadDynamicConfigs();
+        setToday();
+    </script>
+</body>
+</html>
